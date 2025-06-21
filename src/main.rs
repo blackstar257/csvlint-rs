@@ -78,7 +78,7 @@ fn main() {
 
     let reader = BufReader::new(file);
 
-    let result = match validate(reader, delimiter_byte, lazy_quotes) {
+    let result = match validate(reader, delimiter_byte, lazy_quotes, args.rfc4180) {
         Ok(result) => result,
         Err(e) => {
             eprintln!("validation error: {}", e);

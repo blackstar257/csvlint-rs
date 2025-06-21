@@ -66,6 +66,7 @@ pub fn validate<R: Read>(
     reader: R,
     delimiter: u8,
     lazy_quotes: bool,
+    rfc4180_mode: bool,
 ) -> Result<ValidationResult, Box<dyn std::error::Error>> {
     // First, read the entire content to check line endings and other RFC 4180 requirements
     let mut content = Vec::new();
@@ -75,7 +76,7 @@ pub fn validate<R: Read>(
     let mut errors = Vec::new();
 
     // Check for proper line endings (RFC 4180 requires CRLF)
-    if !lazy_quotes && delimiter == b',' {
+    if rfc4180_mode {
         validate_line_endings(&content, &mut errors);
     }
 
@@ -244,7 +245,7 @@ mod tests {
     #[test]
     fn test_perfect_csv() {
         let csv_data = "field1,field2,field3\r\na,b,c\r\nd,e,f\r\n";
-        let result = validate(Cursor::new(csv_data), b',', false).unwrap();
+        let result = validate(Cursor::new(csv_data), b',', false, false).unwrap();
         assert!(result.errors.is_empty());
         assert!(!result.halted);
     }
@@ -252,7 +253,7 @@ mod tests {
     #[test]
     fn test_field_count_error() {
         let csv_data = "field1,field2,field3\r\na,b,c\r\nd,e,f,g\r\n";
-        let result = validate(Cursor::new(csv_data), b',', false).unwrap();
+        let result = validate(Cursor::new(csv_data), b',', false, false).unwrap();
         assert_eq!(result.errors.len(), 1);
         assert_eq!(result.errors[0].record_num, 2);
         assert_eq!(result.errors[0].error, CsvErrorKind::FieldCount);
@@ -270,7 +271,7 @@ mod tests {
     #[test]
     fn test_line_ending_validation() {
         let csv_data = "field1,field2,field3\na,b,c\nd,e,f\n"; // LF only, not CRLF
-        let result = validate(Cursor::new(csv_data), b',', false).unwrap();
+        let result = validate(Cursor::new(csv_data), b',', false, true).unwrap(); // RFC 4180 mode
         assert!(!result.errors.is_empty());
         assert!(result
             .errors
@@ -281,8 +282,8 @@ mod tests {
     #[test]
     fn test_lazy_quotes_allows_lf() {
         let csv_data = "field1,field2,field3\na,b,c\nd,e,f\n"; // LF only
-        let result = validate(Cursor::new(csv_data), b',', true).unwrap(); // lazy_quotes = true
-                                                                           // Should not validate line endings in lazy mode
+        let result = validate(Cursor::new(csv_data), b',', true, false).unwrap(); // lazy_quotes = true, not RFC 4180
+                                                                                  // Should not validate line endings in lazy mode
         assert!(result
             .errors
             .iter()
@@ -294,14 +295,14 @@ mod tests {
         // Test that the CSV parser can handle various quote scenarios
         // Some parsers are more lenient than others regarding bare quotes
         let csv_data = "field1,field2,field3\r\na,b,c\r\n";
-        let result = validate(Cursor::new(csv_data), b',', false).unwrap();
+        let result = validate(Cursor::new(csv_data), b',', false, false).unwrap();
         assert!(result.errors.is_empty());
     }
 
     #[test]
     fn test_proper_quote_escaping() {
         let csv_data = "field1,field2,field3\r\n\"a\",\"b\"\"c\",\"d\"\r\n";
-        let result = validate(Cursor::new(csv_data), b',', false).unwrap();
+        let result = validate(Cursor::new(csv_data), b',', false, false).unwrap();
         for error in &result.errors {
             println!("Error: {:?}", error);
         }
@@ -311,7 +312,7 @@ mod tests {
     #[test]
     fn test_different_delimiters() {
         let csv_data = "field1\tfield2\tfield3\r\na\tb\tc\r\nd\te\tf\r\n";
-        let result = validate(Cursor::new(csv_data), b'\t', false).unwrap();
+        let result = validate(Cursor::new(csv_data), b'\t', false, false).unwrap();
         assert!(result.errors.is_empty());
         assert!(!result.halted);
     }
@@ -319,7 +320,7 @@ mod tests {
     #[test]
     fn test_multiple_field_count_errors() {
         let csv_data = "field1,field2,field3\r\na,b,c\r\nd,e,f,g\r\nh,i,j\r\nk,l,m,n\r\n";
-        let result = validate(Cursor::new(csv_data), b',', false).unwrap();
+        let result = validate(Cursor::new(csv_data), b',', false, false).unwrap();
         assert_eq!(result.errors.len(), 2);
         assert_eq!(result.errors[0].record_num, 2);
         assert_eq!(result.errors[1].record_num, 4);
@@ -330,7 +331,7 @@ mod tests {
         // Test strict RFC 4180 compliance (comma delimiter, CRLF line endings)
         let csv_data =
             "Name,Age,City\r\n\"John Doe\",30,\"New York\"\r\n\"Jane Smith\",25,Chicago\r\n";
-        let result = validate(Cursor::new(csv_data), b',', false).unwrap();
+        let result = validate(Cursor::new(csv_data), b',', false, true).unwrap(); // RFC 4180 mode
         assert!(result.errors.is_empty());
         assert!(!result.halted);
     }
@@ -338,7 +339,7 @@ mod tests {
     #[test]
     fn test_fields_with_commas_and_quotes() {
         let csv_data = "field1,field2,field3\r\n\"a,b\",\"c\"\"d\",\"e\r\nf\"\r\n";
-        let result = validate(Cursor::new(csv_data), b',', false).unwrap();
+        let result = validate(Cursor::new(csv_data), b',', false, false).unwrap();
         assert!(result.errors.is_empty());
     }
 
@@ -419,7 +420,7 @@ mod tests {
                 .unwrap_or_else(|_| panic!("Could not open test file: {}", test_case.file));
 
             // Use lazy quotes for existing test files to maintain compatibility
-            let result = validate(file, test_case.delimiter, true).unwrap();
+            let result = validate(file, test_case.delimiter, true, false).unwrap();
 
             // Filter out line ending errors for test compatibility
             let relevant_errors: Vec<_> = result
