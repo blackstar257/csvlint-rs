@@ -1,0 +1,12 @@
+# Global code owners
+* @blackstar257
+
+# Workflows require special attention
+.github/workflows/ @blackstar257
+
+# Core library code
+src/ @blackstar257
+
+# Configuration files
+Cargo.toml @blackstar257
+Cargo.lock @blackstar257 
