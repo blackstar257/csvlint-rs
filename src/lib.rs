@@ -71,14 +71,14 @@ pub fn validate<R: Read>(
     let mut content = Vec::new();
     let mut reader = reader;
     reader.read_to_end(&mut content)?;
-    
+
     let mut errors = Vec::new();
-    
+
     // Check for proper line endings (RFC 4180 requires CRLF)
     if !lazy_quotes && delimiter == b',' {
         validate_line_endings(&content, &mut errors);
     }
-    
+
     // Now validate CSV structure using the csv crate
     let cursor = std::io::Cursor::new(&content);
     let mut csv_reader = ReaderBuilder::new()
@@ -108,7 +108,10 @@ pub fn validate<R: Read>(
                 record_num: 0,
                 error: convert_csv_error(&csv_error),
             });
-            return Ok(ValidationResult { errors, halted: true });
+            return Ok(ValidationResult {
+                errors,
+                halted: true,
+            });
         }
     }
 
@@ -119,14 +122,14 @@ pub fn validate<R: Read>(
                 if !has_record {
                     break; // End of file
                 }
-                
+
                 record_num += 1;
-                
+
                 // Validate record format (quotes, escaping, etc.)
                 if !lazy_quotes {
                     validate_record_format(&string_record, record_num + 1, &mut errors);
                 }
-                
+
                 // Check field count consistency
                 if let Some(expected_len) = header_len {
                     if string_record.len() != expected_len {
@@ -169,7 +172,7 @@ pub fn validate<R: Read>(
 fn validate_line_endings(content: &[u8], errors: &mut Vec<CsvError>) {
     let mut line_num = 1;
     let mut i = 0;
-    
+
     while i < content.len() {
         if content[i] == b'\n' {
             // Found LF, check if it's preceded by CR
@@ -197,12 +200,12 @@ fn validate_line_endings(content: &[u8], errors: &mut Vec<CsvError>) {
 
 /// Validates individual record format according to RFC 4180
 /// Note: This validates the raw CSV content, not parsed fields
-fn validate_record_format(_record: &StringRecord, _record_num: usize, _errors: &mut Vec<CsvError>) {
+fn validate_record_format(_record: &StringRecord, _record_num: usize, _errors: &mut [CsvError]) {
     // For now, we'll rely on the CSV parser's built-in validation
     // since it already handles quote escaping and field parsing correctly.
     // Additional validation could be added here for specific RFC 4180 requirements
     // that the CSV parser doesn't enforce.
-    
+
     // The main validations we need (field count, line endings) are handled elsewhere.
     // Quote validation is handled by the CSV parser itself and will generate parse errors
     // if there are issues.
@@ -235,8 +238,8 @@ fn convert_csv_error(csv_error: &csv::Error) -> CsvErrorKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Cursor;
     use std::fs::File;
+    use std::io::Cursor;
 
     #[test]
     fn test_perfect_csv() {
@@ -255,7 +258,12 @@ mod tests {
         assert_eq!(result.errors[0].error, CsvErrorKind::FieldCount);
         assert_eq!(
             result.errors[0].record,
-            Some(vec!["d".to_string(), "e".to_string(), "f".to_string(), "g".to_string()])
+            Some(vec![
+                "d".to_string(),
+                "e".to_string(),
+                "f".to_string(),
+                "g".to_string()
+            ])
         );
     }
 
@@ -264,15 +272,21 @@ mod tests {
         let csv_data = "field1,field2,field3\na,b,c\nd,e,f\n"; // LF only, not CRLF
         let result = validate(Cursor::new(csv_data), b',', false).unwrap();
         assert!(!result.errors.is_empty());
-        assert!(result.errors.iter().any(|e| matches!(e.error, CsvErrorKind::InvalidLineEnding)));
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| matches!(e.error, CsvErrorKind::InvalidLineEnding)));
     }
 
     #[test]
     fn test_lazy_quotes_allows_lf() {
         let csv_data = "field1,field2,field3\na,b,c\nd,e,f\n"; // LF only
         let result = validate(Cursor::new(csv_data), b',', true).unwrap(); // lazy_quotes = true
-        // Should not validate line endings in lazy mode
-        assert!(result.errors.iter().all(|e| !matches!(e.error, CsvErrorKind::InvalidLineEnding)));
+                                                                           // Should not validate line endings in lazy mode
+        assert!(result
+            .errors
+            .iter()
+            .all(|e| !matches!(e.error, CsvErrorKind::InvalidLineEnding)));
     }
 
     #[test]
@@ -314,7 +328,8 @@ mod tests {
     #[test]
     fn test_rfc4180_compliance_mode() {
         // Test strict RFC 4180 compliance (comma delimiter, CRLF line endings)
-        let csv_data = "Name,Age,City\r\n\"John Doe\",30,\"New York\"\r\n\"Jane Smith\",25,Chicago\r\n";
+        let csv_data =
+            "Name,Age,City\r\n\"John Doe\",30,\"New York\"\r\n\"Jane Smith\",25,Chicago\r\n";
         let result = validate(Cursor::new(csv_data), b',', false).unwrap();
         assert!(result.errors.is_empty());
         assert!(!result.halted);
@@ -399,40 +414,38 @@ mod tests {
 
         for test_case in test_cases {
             println!("Testing file: {}", test_case.file);
-            
-            let file = File::open(test_case.file).unwrap_or_else(|_| {
-                panic!("Could not open test file: {}", test_case.file)
-            });
-            
+
+            let file = File::open(test_case.file)
+                .unwrap_or_else(|_| panic!("Could not open test file: {}", test_case.file));
+
             // Use lazy quotes for existing test files to maintain compatibility
             let result = validate(file, test_case.delimiter, true).unwrap();
-            
+
             // Filter out line ending errors for test compatibility
-            let relevant_errors: Vec<_> = result.errors.iter()
+            let relevant_errors: Vec<_> = result
+                .errors
+                .iter()
                 .filter(|e| !matches!(e.error, CsvErrorKind::InvalidLineEnding))
                 .collect();
-            
+
             assert_eq!(
                 relevant_errors.len(),
                 test_case.expected_errors,
                 "Wrong number of errors for {}",
                 test_case.file
             );
-            
+
             assert_eq!(
-                result.halted,
-                test_case.expected_halted,
+                result.halted, test_case.expected_halted,
                 "Wrong halted status for {}",
                 test_case.file
             );
-            
+
             for (i, expected_record_num) in test_case.expected_error_records.iter().enumerate() {
                 assert_eq!(
-                    relevant_errors[i].record_num,
-                    *expected_record_num,
+                    relevant_errors[i].record_num, *expected_record_num,
                     "Wrong record number for error {} in {}",
-                    i,
-                    test_case.file
+                    i, test_case.file
                 );
                 assert_eq!(
                     relevant_errors[i].error,
@@ -452,13 +465,19 @@ mod tests {
             record_num: 3,
             error: CsvErrorKind::FieldCount,
         };
-        assert_eq!(error.to_string(), "Record #3 has error: wrong number of fields");
+        assert_eq!(
+            error.to_string(),
+            "Record #3 has error: wrong number of fields"
+        );
 
         let error = CsvError {
             record: Some(vec!["d".to_string(), "e".to_string(), "f".to_string()]),
             record_num: 1,
             error: CsvErrorKind::BareQuote,
         };
-        assert_eq!(error.to_string(), "Record #1 has error: bare \" in non-quoted-field");
+        assert_eq!(
+            error.to_string(),
+            "Record #1 has error: bare \" in non-quoted-field"
+        );
     }
-} 
+}

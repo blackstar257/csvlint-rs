@@ -30,7 +30,9 @@ fn main() {
     // Handle RFC 4180 strict mode
     let (delimiter_byte, lazy_quotes) = if args.rfc4180 {
         if args.delimiter != "," {
-            eprintln!("Warning: --rfc4180 mode requires comma delimiter, ignoring --delimiter option");
+            eprintln!(
+                "Warning: --rfc4180 mode requires comma delimiter, ignoring --delimiter option"
+            );
         }
         if args.lazyquotes {
             eprintln!("Warning: --rfc4180 mode disables lazy quotes, ignoring --lazyquotes option");
@@ -75,7 +77,7 @@ fn main() {
     };
 
     let reader = BufReader::new(file);
-    
+
     let result = match validate(reader, delimiter_byte, lazy_quotes) {
         Ok(result) => result,
         Err(e) => {
@@ -104,8 +106,9 @@ fn main() {
         match error.error {
             csvlint::CsvErrorKind::FieldCount => field_count_errors += 1,
             csvlint::CsvErrorKind::InvalidLineEnding => line_ending_errors += 1,
-            csvlint::CsvErrorKind::BareQuote | csvlint::CsvErrorKind::Quote | 
-            csvlint::CsvErrorKind::UnterminatedQuote => quote_errors += 1,
+            csvlint::CsvErrorKind::BareQuote
+            | csvlint::CsvErrorKind::Quote
+            | csvlint::CsvErrorKind::UnterminatedQuote => quote_errors += 1,
             _ => other_errors += 1,
         }
     }
@@ -116,7 +119,10 @@ fn main() {
         println!("  - {} field count error(s)", field_count_errors);
     }
     if line_ending_errors > 0 {
-        println!("  - {} line ending error(s) (RFC 4180 requires CRLF)", line_ending_errors);
+        println!(
+            "  - {} line ending error(s) (RFC 4180 requires CRLF)",
+            line_ending_errors
+        );
     }
     if quote_errors > 0 {
         println!("  - {} quote/escaping error(s)", quote_errors);
@@ -166,8 +172,8 @@ mod tests {
         assert_eq!(parse_delimiter(":").unwrap(), b':');
         assert_eq!(parse_delimiter(";").unwrap(), b';');
         assert_eq!(parse_delimiter("x").unwrap(), b'x');
-        
+
         assert!(parse_delimiter("").is_err());
         assert!(parse_delimiter("ab").is_err());
     }
-} 
+}
