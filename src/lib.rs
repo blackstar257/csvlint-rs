@@ -273,21 +273,25 @@ mod tests {
         let csv_data = "field1,field2,field3\na,b,c\nd,e,f\n"; // LF only, not CRLF
         let result = validate(Cursor::new(csv_data), b',', false, true).unwrap(); // RFC 4180 mode
         assert!(!result.errors.is_empty());
-        assert!(result
-            .errors
-            .iter()
-            .any(|e| matches!(e.error, CsvErrorKind::InvalidLineEnding)));
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| matches!(e.error, CsvErrorKind::InvalidLineEnding))
+        );
     }
 
     #[test]
     fn test_lazy_quotes_allows_lf() {
         let csv_data = "field1,field2,field3\na,b,c\nd,e,f\n"; // LF only
         let result = validate(Cursor::new(csv_data), b',', true, false).unwrap(); // lazy_quotes = true, not RFC 4180
-                                                                                  // Should not validate line endings in lazy mode
-        assert!(result
-            .errors
-            .iter()
-            .all(|e| !matches!(e.error, CsvErrorKind::InvalidLineEnding)));
+        // Should not validate line endings in lazy mode
+        assert!(
+            result
+                .errors
+                .iter()
+                .all(|e| !matches!(e.error, CsvErrorKind::InvalidLineEnding))
+        );
     }
 
     #[test]
