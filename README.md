@@ -106,9 +106,9 @@ use std::io::BufReader;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file = File::open("data.csv")?;
     let reader = BufReader::new(file);
-    
+
     let result = validate(reader, b',', false)?;
-    
+
     if result.errors.is_empty() {
         println!("File is valid!");
     } else {
@@ -116,7 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("{}", error);
         }
     }
-    
+
     Ok(())
 }
 ```
@@ -174,15 +174,6 @@ This Rust implementation leverages the excellent [csv crate](https://docs.rs/csv
 - Efficient memory usage
 - Fast field iteration
 - Robust error handling
-
-## Differences from Go Version
-
-While maintaining the same CLI interface and behavior, the Rust version offers:
-
-- Memory safety guarantees
-- Better error handling with structured error types
-- Potentially better performance due to zero-copy parsing
-- More detailed error categorization
 
 ## License
 
